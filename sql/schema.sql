@@ -1,0 +1,128 @@
+-- sql/schema.sql
+-- Create DB first:
+--   CREATE DATABASE giftshop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- Then run this file.
+
+SET FOREIGN_KEY_CHECKS=0;
+
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS cart_items;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS admins;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  phone VARCHAR(20) NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE admins (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin','staff') NOT NULL DEFAULT 'admin',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE categories (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  slug VARCHAR(120) NOT NULL UNIQUE,
+  image VARCHAR(255) NULL,
+  status TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  category_id INT NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  slug VARCHAR(160) NOT NULL UNIQUE,
+  description TEXT NULL,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  stock INT NOT NULL DEFAULT 0,
+  image VARCHAR(255) NULL,
+  status TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_products_category
+    FOREIGN KEY (category_id) REFERENCES categories(id)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- Optional: persistent cart per user
+CREATE TABLE cart_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  product_id INT NOT NULL,
+  qty INT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cart_user_product (user_id, product_id),
+  CONSTRAINT fk_cart_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_cart_product
+    FOREIGN KEY (product_id) REFERENCES products(id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE orders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  order_no VARCHAR(30) NOT NULL UNIQUE,
+  subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+  shipping DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  status ENUM('pending','paid','shipped','delivered','cancelled') NOT NULL DEFAULT 'pending',
+  full_name VARCHAR(120) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  address1 VARCHAR(255) NOT NULL,
+  address2 VARCHAR(255) NULL,
+  city VARCHAR(80) NOT NULL,
+  state VARCHAR(80) NOT NULL,
+  pincode VARCHAR(10) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_orders_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE order_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  order_id INT NOT NULL,
+  product_id INT NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  qty INT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_items_order
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_items_product
+    FOREIGN KEY (product_id) REFERENCES products(id)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  order_id INT NOT NULL,
+  provider ENUM('demo','razorpay') NOT NULL DEFAULT 'demo',
+  payment_ref VARCHAR(120) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  status ENUM('created','paid','failed') NOT NULL DEFAULT 'created',
+  paid_at DATETIME NULL,
+  raw_response JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_payments_order
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+SET FOREIGN_KEY_CHECKS=1;
